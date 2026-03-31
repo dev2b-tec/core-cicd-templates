@@ -1,0 +1,122 @@
+name: Docker Build & Push
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: "Nome da aplicação (usado para nomear a imagem e localizar o Dockerfile)"
+        required: true
+        type: string
+      image_tag:
+        description: "Tag da imagem Docker (padrão: SHA do commit)"
+        required: false
+        type: string
+        default: ""
+      dockerfile_path:
+        description: "Caminho do Dockerfile no repo filho (padrão: Dockerfile.<app_name>)"
+        required: false
+        type: string
+        default: ""
+      context:
+        description: "Contexto de build do Docker"
+        required: false
+        type: string
+        default: "."
+      platforms:
+        description: "Plataformas de build (ex: linux/amd64,linux/arm64)"
+        required: false
+        type: string
+        default: "linux/amd64"
+    secrets:
+      DOCKER_TOKEN:
+        required: true
+      DOCKER_USERNAME:
+        required: true
+
+jobs:
+  build-and-push:
+    name: Build & Push — ${{ inputs.app_name }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Resolver parâmetros de build
+        id: params
+        run: |
+          # Tag da imagem
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            TAG="${{ inputs.image_tag }}"
+          else
+            TAG="${{ github.sha }}"
+          fi
+
+          # Caminho do Dockerfile
+          if [ -n "${{ inputs.dockerfile_path }}" ]; then
+            DOCKERFILE="${{ inputs.dockerfile_path }}"
+          elif [ -f "Dockerfile.${{ inputs.app_name }}" ]; then
+            DOCKERFILE="Dockerfile.${{ inputs.app_name }}"
+          elif [ -f "${{ inputs.app_name }}/Dockerfile" ]; then
+            DOCKERFILE="${{ inputs.app_name }}/Dockerfile"
+          else
+            DOCKERFILE="Dockerfile"
+          fi
+
+          # Nome completo da imagem
+          IMAGE="${{ secrets.DOCKER_USERNAME }}/${{ inputs.app_name }}"
+
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "dockerfile=${DOCKERFILE}" >> $GITHUB_OUTPUT
+          echo "image=${IMAGE}" >> $GITHUB_OUTPUT
+          echo "image_full=${IMAGE}:${TAG}" >> $GITHUB_OUTPUT
+
+          echo "### Build Info" >> $GITHUB_STEP_SUMMARY
+          echo "- **App:** ${{ inputs.app_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Imagem:** ${IMAGE}:${TAG}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dockerfile:** ${DOCKERFILE}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Plataformas:** ${{ inputs.platforms }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Verificar Dockerfile
+        run: |
+          if [ ! -f "${{ steps.params.outputs.dockerfile }}" ]; then
+            echo "❌ Dockerfile não encontrado: ${{ steps.params.outputs.dockerfile }}"
+            echo "Arquivos disponíveis na raiz:"
+            ls -la | grep -i docker || echo "(nenhum arquivo com 'docker' no nome)"
+            exit 1
+          fi
+          echo "✅ Dockerfile encontrado: ${{ steps.params.outputs.dockerfile }}"
+
+      - name: Setup QEMU (multi-platform)
+        if: inputs.platforms != 'linux/amd64'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login no Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build e Push da imagem
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ steps.params.outputs.dockerfile }}
+          platforms: ${{ inputs.platforms }}
+          push: true
+          tags: |
+            ${{ steps.params.outputs.image_full }}
+            ${{ steps.params.outputs.image }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Resumo do build
+        run: |
+          echo "### ✅ Imagem publicada com sucesso!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ steps.params.outputs.image_full }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,25 @@
+# EXEMPLO — Cole este arquivo no repo filho em .github/workflows/build.yml
+# Ajuste o nome da org/repo conforme necessário
+
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    uses: DEV2B/core-cicd-templates/.github/workflows/docker-build.yml@main
+    with:
+      app_name: minha-aplicacao        # mesmo nome do Dockerfile (ex: Dockerfile.minha-aplicacao)
+      # image_tag: "1.0.0"             # opcional — padrão é o SHA do commit
+      # dockerfile_path: "infra/Dockerfile.custom"  # opcional — sobrescreve a resolução automática
+      # platforms: "linux/amd64,linux/arm64"        # opcional — padrão é linux/amd64
+    secrets:
+      DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
