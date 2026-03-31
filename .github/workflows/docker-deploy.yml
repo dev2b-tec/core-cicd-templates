@@ -116,6 +116,16 @@ jobs:
               chmod 600 .env.app
             fi
 
+            # Garante que todas as networks externas declaradas no compose existem
+            for net in $(docker compose config --format json 2>/dev/null | python3 -c "
+import sys, json
+cfg = json.load(sys.stdin)
+nets = cfg.get('networks', {})
+print('\n'.join(n for n, v in nets.items() if isinstance(v, dict) and v.get('external')))
+" 2>/dev/null); do
+              docker network inspect "$net" > /dev/null 2>&1 || docker network create "$net"
+            done
+
             if [ "${{ inputs.skip_pull }}" != "true" ]; then
               # Login no registry para puxar imagem privada
               REGISTRY="${{ inputs.registry }}"
