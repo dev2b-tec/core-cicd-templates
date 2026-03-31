@@ -1,0 +1,12 @@
+# Cole este arquivo na raiz do repo filho: docker-compose.yml
+# O deploy injeta automaticamente as variáveis IMAGE_TAG e DOCKER_USERNAME via .env
+
+services:
+  minha-aplicacao:
+    image: ${DOCKER_USERNAME}/minha-aplicacao:${IMAGE_TAG}
+    restart: unless-stopped
+    ports:
+      - "3000:3000"   # <-- porta que será exposta na VPS
+    environment:
+      - NODE_ENV=production
+      # adicione outras variáveis de ambiente da aplicação aqui
