@@ -1,0 +1,6 @@
+{
+  "name": "Docker Build & Push",
+  "description": "Build a Docker image and optionally push it to GHCR using the core CI/CD templates.",
+  "iconName": "docker",
+  "categories": ["Docker", "Container", "CI"]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Node.js CI",
+  "description": "Build, lint and test a Node.js project using the core CI/CD templates.",
+  "iconName": "javascript",
+  "categories": ["JavaScript", "Node", "CI"]
+}

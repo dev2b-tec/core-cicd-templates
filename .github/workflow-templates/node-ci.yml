@@ -1,0 +1,17 @@
+name: Node.js CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    uses: dev2b-tec/core-cicd-templates/.github/workflows/ci-node.yml@main
+    with:
+      node-version: '20'
+      # lint-command: 'npm run lint'   # uncomment if you have a lint script
+      # test-command: 'npm test'        # uncomment if you have a test script
+      # build-command: 'npm run build'  # uncomment if you have a build script
+      upload-build-artifact: false
