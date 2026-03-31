@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version used to run semantic-release'
+        type: string
+        default: '20'
+      extra-plugins:
+        description: 'Space-separated list of extra semantic-release plugins to install'
+        type: string
+        default: ''
+    secrets:
+      gh-token:
+        description: 'GitHub token with write access to the repository'
+        required: false
+      npm-token:
+        description: 'NPM token (required only when publishing to npm)'
+        required: false
+
+jobs:
+  release:
+    name: Semantic release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js ${{ inputs.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install semantic-release and plugins
+        run: |
+          npm install --no-save \
+            semantic-release \
+            @semantic-release/changelog \
+            @semantic-release/git \
+            @semantic-release/github \
+            ${{ inputs.extra-plugins }}
+
+      - name: Run semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.gh-token || github.token }}
+          NPM_TOKEN: ${{ secrets.npm-token }}
+        run: npx semantic-release
