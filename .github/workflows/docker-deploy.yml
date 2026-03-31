@@ -21,6 +21,11 @@ on:
         required: false
         type: string
         default: ""
+      registry:
+        description: "Registry de onde a imagem será puxada (padrão: vazio = Docker Hub). Ex: ghcr.io"
+        required: false
+        type: string
+        default: ""
     secrets:
       DOCKER_USERNAME:
         required: true
@@ -34,6 +39,9 @@ on:
         required: true
       VPS_PORT:
         required: true
+      APP_ENV:
+        description: "Conteúdo completo do arquivo .env da aplicação (multi-line secret)"
+        required: false
 
 jobs:
   deploy:
@@ -78,24 +86,34 @@ jobs:
 
       - name: Deploy na VPS via SSH
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          APP_ENV_CONTENT: ${{ secrets.APP_ENV }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_PORT }}
+          envs: APP_ENV_CONTENT
           script: |
             set -e
 
             echo "Iniciando deploy de ${{ inputs.app_name }}..."
 
-            # Login no Docker Hub para puxar imagem privada
-            echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+            # Login no registry para puxar imagem privada
+            REGISTRY="${{ inputs.registry }}"
+            echo "${{ secrets.DOCKER_TOKEN }}" | docker login ${REGISTRY:+$REGISTRY} -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
             cd ${{ inputs.deploy_path }}
 
             # Injeta a tag da imagem para o compose usar
             echo "IMAGE_TAG=${{ steps.params.outputs.tag }}" > .env
             echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env
+
+            # Injeta variáveis de ambiente da aplicação (se fornecidas)
+            if [ -n "$APP_ENV_CONTENT" ]; then
+              echo "$APP_ENV_CONTENT" > .env.app
+              chmod 600 .env.app
+            fi
 
             # Puxa a nova imagem e reinicia o serviço
             docker compose pull ${{ steps.params.outputs.service }}
