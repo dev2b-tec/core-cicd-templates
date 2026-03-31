@@ -1,0 +1,83 @@
+name: CI – Node.js
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version to use'
+        type: string
+        default: '20'
+      working-directory:
+        description: 'Working directory for the project'
+        type: string
+        default: '.'
+      install-command:
+        description: 'Command to install dependencies'
+        type: string
+        default: 'npm ci'
+      lint-command:
+        description: 'Command to run linter (leave empty to skip)'
+        type: string
+        default: 'npm run lint'
+      test-command:
+        description: 'Command to run tests (leave empty to skip)'
+        type: string
+        default: 'npm test'
+      build-command:
+        description: 'Command to build the project (leave empty to skip)'
+        type: string
+        default: 'npm run build'
+      upload-build-artifact:
+        description: 'Whether to upload the build artifact'
+        type: boolean
+        default: false
+      artifact-path:
+        description: 'Path of the build output to upload as artifact'
+        type: string
+        default: 'dist'
+      artifact-name:
+        description: 'Name for the uploaded artifact'
+        type: string
+        default: 'build'
+
+jobs:
+  ci:
+    name: Lint · Test · Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ inputs.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install dependencies
+        run: ${{ inputs.install-command }}
+
+      - name: Lint
+        if: inputs.lint-command != ''
+        run: ${{ inputs.lint-command }}
+
+      - name: Test
+        if: inputs.test-command != ''
+        run: ${{ inputs.test-command }}
+
+      - name: Build
+        if: inputs.build-command != ''
+        run: ${{ inputs.build-command }}
+
+      - name: Upload build artifact
+        if: inputs.upload-build-artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.working-directory }}/${{ inputs.artifact-path }}
+          if-no-files-found: error
