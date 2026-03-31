@@ -1,0 +1,111 @@
+name: Docker Deploy (VPS)
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: "Nome da aplicação (mesmo usado no build)"
+        required: true
+        type: string
+      image_tag:
+        description: "Tag da imagem a ser deployada (padrão: SHA do commit)"
+        required: false
+        type: string
+        default: ""
+      deploy_path:
+        description: "Caminho absoluto na VPS onde está o docker-compose.yml da app"
+        required: true
+        type: string
+      compose_service:
+        description: "Nome do serviço no docker-compose.yml (padrão: app_name)"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      DOCKER_USERNAME:
+        required: true
+      DOCKER_TOKEN:
+        required: true
+      VPS_HOST:
+        required: true
+      VPS_USER:
+        required: true
+      VPS_PASSWORD:
+        required: true
+      VPS_PORT:
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy — ${{ inputs.app_name }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolver parâmetros
+        id: params
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            TAG="${{ inputs.image_tag }}"
+          else
+            TAG="${{ github.sha }}"
+          fi
+
+          if [ -n "${{ inputs.compose_service }}" ]; then
+            SERVICE="${{ inputs.compose_service }}"
+          else
+            SERVICE="${{ inputs.app_name }}"
+          fi
+
+          IMAGE="${{ secrets.DOCKER_USERNAME }}/${{ inputs.app_name }}:${TAG}"
+
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "service=${SERVICE}" >> $GITHUB_OUTPUT
+          echo "image=${IMAGE}" >> $GITHUB_OUTPUT
+
+      - name: Deploy na VPS via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            set -e
+
+            echo "📦 Iniciando deploy de ${{ inputs.app_name }}..."
+
+            # Login no Docker Hub para puxar imagem privada
+            echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+            cd ${{ inputs.deploy_path }}
+
+            # Atualiza a variável de imagem no ambiente e faz pull
+            export APP_IMAGE="${{ steps.params.outputs.image }}"
+            echo "APP_IMAGE=${APP_IMAGE}" > .env.deploy
+
+            # Puxa a nova imagem
+            docker pull "${{ steps.params.outputs.image }}"
+
+            # Atualiza o serviço sem derrubar os demais
+            docker compose up -d --no-deps --pull always ${{ steps.params.outputs.service }}
+
+            # Remove imagens antigas da mesma app (mantém últimas 3)
+            docker images "${{ secrets.DOCKER_USERNAME }}/${{ inputs.app_name }}" \
+              --format "{{.ID}} {{.CreatedAt}}" \
+              | sort -rk2 \
+              | awk 'NR>3 {print $1}' \
+              | xargs -r docker rmi || true
+
+            echo "✅ Deploy de ${{ inputs.app_name }} concluído!"
+
+      - name: Resumo do deploy
+        run: |
+          echo "### ✅ Deploy realizado com sucesso!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Campo | Valor |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| App | \`${{ inputs.app_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Imagem | \`${{ steps.params.outputs.image }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| VPS path | \`${{ inputs.deploy_path }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Serviço | \`${{ steps.params.outputs.service }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY

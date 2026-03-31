@@ -1,13 +1,9 @@
 # Cole este arquivo no repo filho em: .github/workflows/build.yml
 
-name: Build
+name: Build & Deploy
 
 on:
   push:
-    branches:
-      - main
-      - develop
-  pull_request:
     branches:
       - main
 
@@ -15,10 +11,22 @@ jobs:
   build:
     uses: dev2b-tec/core-cicd-templates/.github/workflows/docker-build.yml@main
     with:
-      app_name: minha-aplicacao        # mesmo nome do Dockerfile (ex: Dockerfile.minha-aplicacao)
-      # image_tag: "1.0.0"             # opcional — padrão é o SHA do commit
-      # dockerfile_path: "infra/Dockerfile.custom"  # opcional — sobrescreve a resolução automática
-      # platforms: "linux/amd64,linux/arm64"        # opcional — padrão é linux/amd64
+      app_name: minha-aplicacao   # mesmo nome do Dockerfile (ex: Dockerfile.minha-aplicacao)
     secrets:
       DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+
+  deploy:
+    needs: build                  # só executa se o build passar
+    uses: dev2b-tec/core-cicd-templates/.github/workflows/docker-deploy.yml@main
+    with:
+      app_name: minha-aplicacao
+      deploy_path: /opt/apps/minha-aplicacao   # caminho na VPS com o docker-compose.yml
+      # compose_service: api                   # opcional — se o serviço no compose tiver nome diferente
+    secrets:
+      DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
