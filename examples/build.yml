@@ -1,5 +1,4 @@
-# EXEMPLO — Cole este arquivo no repo filho em .github/workflows/build.yml
-# Ajuste o nome da org/repo conforme necessário
+# Cole este arquivo no repo filho em: .github/workflows/build.yml
 
 name: Build
 
@@ -14,7 +13,7 @@ on:
 
 jobs:
   build:
-    uses: DEV2B/core-cicd-templates/.github/workflows/docker-build.yml@main
+    uses: dev2b-tec/core-cicd-templates/.github/workflows/docker-build.yml@main
     with:
       app_name: minha-aplicacao        # mesmo nome do Dockerfile (ex: Dockerfile.minha-aplicacao)
       # image_tag: "1.0.0"             # opcional — padrão é o SHA do commit
