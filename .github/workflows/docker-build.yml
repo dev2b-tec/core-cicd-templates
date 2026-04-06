@@ -27,6 +27,11 @@ on:
         required: false
         type: string
         default: "linux/amd64"
+      build_args:
+        description: "Build args separados por nova linha (ex: FOO=bar)"
+        required: false
+        type: string
+        default: ""
     secrets:
       DOCKER_TOKEN:
         required: true
@@ -110,6 +115,7 @@ jobs:
           tags: |
             ${{ steps.params.outputs.image_full }}
             ${{ steps.params.outputs.image }}:latest
+          build-args: ${{ inputs.build_args }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
